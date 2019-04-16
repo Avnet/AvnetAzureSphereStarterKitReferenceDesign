@@ -1,11 +1,11 @@
 {
   "SchemaVersion": 1,
-  "Name": "Avnet-Starter-Kit-reference-V0.1",
+  "Name": "Avnet-Starter-Kit-reference-V1.0",
   "ComponentId": "685f13af-25a5-40b2-8dd8-8cbc253ecbd8",
   "EntryPoint": "/bin/app",
-  "CmdArgs": [ "Avnet-Starter-Kit-reference-V0.1" ],
+  "CmdArgs": [ "Avnet-Starter-Kit-reference-V1.0" ],
   "Capabilities": {
-    "AllowedConnections": [ "BW-temp-IoTHub.azure-devices.net", "iotc-ab947d88-c556-408b-81d0-148419218e34.azure-devices.net", "iotc-0d18b636-6088-4bcb-b654-3f7758baf097.azure-devices.net" ],
+    "AllowedConnections": [],
     "AllowedTcpServerPorts": [],
     "AllowedUdpServerPorts": [],
     "Gpio": [ 0, 4, 5, 8, 9, 10, 12, 13, 34 ],

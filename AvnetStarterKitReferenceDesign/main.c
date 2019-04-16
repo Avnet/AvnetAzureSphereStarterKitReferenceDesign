@@ -294,7 +294,6 @@ static void ClosePeripheralsAndHandlers(void)
 int main(int argc, char *argv[])
 {
 	// Variable to help us send the version string up only once
-	bool versionStringSent = false;
 	bool networkConfigSent = false;
 	char ssid[128];
 	uint32_t frequency;
@@ -304,7 +303,6 @@ int main(int argc, char *argv[])
 	memset(ssid, 0, 128);
 
 	Log_Debug("Version String: %s\n", argv[1]);
-
 	Log_Debug("Avnet Starter Kit Simple Reference Application starting.\n");
     if (InitPeripheralsAndHandlers() != 0) {
         terminationRequired = true;

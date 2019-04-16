@@ -164,11 +164,13 @@ static void hubConnectionStatusCallback(IOTHUB_CLIENT_CONNECTION_STATUS result,
                                         IOTHUB_CLIENT_CONNECTION_STATUS_REASON reason,
                                         void *userContextCallback);
 
+#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
 #define MAXS_SIZE 512
 // Verify that the connection string is not too long
 _Static_assert(sizeof(connectionString) <= MAXS_SIZE, "Connection string too long");
 // Verify tthat the connection string is defined
 _Static_assert(sizeof(connectionString) > 1, "Connection string not defined! Define MY_CONNECTION_STRING in connection_strings.h");
+#endif
 
 /// <summary>
 ///     Converts the IoT Hub connection status reason to a string.

@@ -122,7 +122,7 @@ void AccelTimerEventHandler(EventData *eventData)
 		acceleration_mg[1] = (float)(data_raw_acceleration.i16bit[1] * 0.122) / 1000;
 		acceleration_mg[2] = (float)(data_raw_acceleration.i16bit[2] * 0.122) / 1000;
 
-		Log_Debug("\nLSM6DSO: Acceleration [mg]:   %.4lf, %.4lf, %.4lf\n",
+		Log_Debug("\nLSM6DSO: Acceleration [mg]  : %.4lf, %.4lf, %.4lf\n",
 			acceleration_mg[0], acceleration_mg[1], acceleration_mg[2]);
 	}
 
@@ -150,7 +150,7 @@ void AccelTimerEventHandler(EventData *eventData)
 		lsm6dso_temperature_raw_get(&dev_ctx, data_raw_temperature.u8bit);
 		lsm6dsoTemperature_degC = lsm6dso_from_lsb_to_celsius(data_raw_temperature.i16bit);
 
-		Log_Debug("LSM6DSO: Temperature  [degC]:%6.2f\r\n", lsm6dsoTemperature_degC);
+		Log_Debug("LSM6DSO: Temperature  [degC]: %.2f\r\n", lsm6dsoTemperature_degC);
 	}
 	
 	// Read the sensors on the lsm6dso device
@@ -163,14 +163,14 @@ void AccelTimerEventHandler(EventData *eventData)
 	{
 		memset(data_raw_pressure.u8bit, 0x00, sizeof(int32_t));
 		lps22hh_pressure_raw_get(&pressure_ctx, data_raw_pressure.u8bit);
-		pressure_hPa = lps22hh_from_lsb_to_hpa(data_raw_pressure.i32bit);
+		pressure_hPa = lps22hh_from_lsb_to_hpa((uint16_t)data_raw_pressure.i32bit);
 
 		memset(data_raw_temperature.u8bit, 0x00, sizeof(int16_t));
 		lps22hh_temperature_raw_get(&pressure_ctx, data_raw_temperature.u8bit);
 		lps22hhTemperature_degC = lps22hh_from_lsb_to_celsius(data_raw_temperature.i16bit);
 
-		Log_Debug("LPS22HH: Pressure     [hPa]:%6.2f\r\n", pressure_hPa);
-		Log_Debug("LPS22HH: Temperature  [degC]:%6.2f\r\n", lps22hhTemperature_degC);
+		Log_Debug("LPS22HH: Pressure     [hPa] : %.2f\r\n", pressure_hPa);
+		Log_Debug("LPS22HH: Temperature  [degC]: %.2f\r\n", lps22hhTemperature_degC);
 	}
 	
 #if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
