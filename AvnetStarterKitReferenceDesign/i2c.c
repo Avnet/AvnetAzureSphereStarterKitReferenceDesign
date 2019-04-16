@@ -122,7 +122,7 @@ void AccelTimerEventHandler(EventData *eventData)
 		acceleration_mg[1] = (float)(data_raw_acceleration.i16bit[1] * 0.122) / 1000;
 		acceleration_mg[2] = (float)(data_raw_acceleration.i16bit[2] * 0.122) / 1000;
 
-		Log_Debug("\nAcceleration [mg]:%.4lf, %.4lf, %.4lf\n",
+		Log_Debug("\nLSM6DSO: Acceleration [mg]:   %.4lf, %.4lf, %.4lf\n",
 			acceleration_mg[0], acceleration_mg[1], acceleration_mg[2]);
 	}
 
@@ -137,9 +137,7 @@ void AccelTimerEventHandler(EventData *eventData)
 		angular_rate_mdps[1] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[1]);
 		angular_rate_mdps[2] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[2]);
 
-		Log_Debug("Raw Angular rate data:%d, %d, %d\r\n",
-			data_raw_angular_rate.i16bit[0], data_raw_angular_rate.i16bit[1], data_raw_angular_rate.i16bit[2]);
-		Log_Debug("Angular rate [mdps]:%4.2f, %4.2f, %4.2f\r\n",
+		Log_Debug("LSM6DSO: Angular rate [mdps]: %4.2f, %4.2f, %4.2f\r\n",
 			angular_rate_mdps[0], angular_rate_mdps[1], angular_rate_mdps[2]);
 
 	}
@@ -152,7 +150,7 @@ void AccelTimerEventHandler(EventData *eventData)
 		lsm6dso_temperature_raw_get(&dev_ctx, data_raw_temperature.u8bit);
 		lsm6dsoTemperature_degC = lsm6dso_from_lsb_to_celsius(data_raw_temperature.i16bit);
 
-		Log_Debug("LSD6MSO Temperature [degC]:%6.2f\r\n", lsm6dsoTemperature_degC);
+		Log_Debug("LSM6DSO: Temperature  [degC]:%6.2f\r\n", lsm6dsoTemperature_degC);
 	}
 	
 	// Read the sensors on the lsm6dso device
@@ -171,8 +169,8 @@ void AccelTimerEventHandler(EventData *eventData)
 		lps22hh_temperature_raw_get(&pressure_ctx, data_raw_temperature.u8bit);
 		lps22hhTemperature_degC = lps22hh_from_lsb_to_celsius(data_raw_temperature.i16bit);
 
-		Log_Debug("Pressure [hPa]:%6.2f\r\n", pressure_hPa);
-		Log_Debug("LPS22HH temperature [degC]:%6.2f\r\n", lps22hhTemperature_degC);
+		Log_Debug("LPS22HH: Pressure     [hPa]:%6.2f\r\n", pressure_hPa);
+		Log_Debug("LPS22HH: Temperature  [degC]:%6.2f\r\n", lps22hhTemperature_degC);
 	}
 	
 #if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
@@ -229,8 +227,11 @@ int initI2c(void) {
 	// Check device ID
 	lsm6dso_device_id_get(&dev_ctx, &whoamI);
 	if (whoamI != LSM6DSO_ID) {
-		Log_Debug("Who Am I test failed!\n");
+		Log_Debug("LSM6DSO not found!\n");
 		return -1;
+	}
+	else {
+		Log_Debug("LSM6DSO Found!\n");
 	}
 		
 	 // Restore default configuration
@@ -265,27 +266,46 @@ int initI2c(void) {
 	pressure_ctx.write_reg = lsm6dso_write_lps22hh_cx;
 	pressure_ctx.handle = &i2cFd;
 
-	// Enable pull up on master I2C interface.
-	lsm6dso_sh_pin_mode_set(&dev_ctx, LSM6DSO_INTERNAL_PULL_UP);
+	bool lps22hhDetected = false;
+	int failCount = 10;
 
-	// Check if LPS22HH is connected to Sensor Hub
-	lps22hh_device_id_get(&pressure_ctx, &whoamI);
-	if (whoamI != LPS22HH_ID) {
-		Log_Debug("LPS22HH not found\n");
-		return -1;
+	while (!lps22hhDetected) {
+		
+		// Enable pull up on master I2C interface.
+		lsm6dso_sh_pin_mode_set(&dev_ctx, LSM6DSO_INTERNAL_PULL_UP);
+
+		// Check if LPS22HH is connected to Sensor Hub
+		lps22hh_device_id_get(&pressure_ctx, &whoamI);
+		if (whoamI != LPS22HH_ID) {
+			Log_Debug("LPS22HH not found!\n");
+		}
+		else {
+			lps22hhDetected = true;
+			Log_Debug("LPS22HH Found!\n");
+		}
+
+		// Restore the default configuration
+		lps22hh_reset_set(&pressure_ctx, PROPERTY_ENABLE);
+		do {
+			lps22hh_reset_get(&pressure_ctx, &rst);
+		} while (rst);
+
+		// Enable Block Data Update
+		lps22hh_block_data_update_set(&pressure_ctx, PROPERTY_ENABLE);
+
+		//Set Output Data Rate
+		lps22hh_data_rate_set(&pressure_ctx, LPS22HH_10_Hz_LOW_NOISE);
+
+		// If we failed to detect the lps22hh device, then pause before trying again.
+		if (!lps22hhDetected) {
+			HAL_Delay(100);
+		}
+
+		if (failCount-- == 0) {
+			Log_Debug("Failed to read LSM22HH device ID, exiting\n");
+			return -1;
+		}
 	}
-
-	// Restore the default configuration
-	lps22hh_reset_set(&pressure_ctx, PROPERTY_ENABLE);
-	do {
-		lps22hh_reset_get(&pressure_ctx, &rst);
-	} while (rst);
-	
-	// Enable Block Data Update
-	lps22hh_block_data_update_set(&pressure_ctx, PROPERTY_ENABLE);
-	
-	//Set Output Data Rate
-	lps22hh_data_rate_set(&pressure_ctx, LPS22HH_10_Hz_LOW_NOISE);
 
 	// Init the epoll interface to periodically run the AccelTimerEventHandler routine where we read the sensors
 
