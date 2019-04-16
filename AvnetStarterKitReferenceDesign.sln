@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.572
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AvnetStarterKitReferenceDesign", "AvnetStarterKitReferenceDesign\AvnetStarterKitReferenceDesign.vcxproj", "{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM = Debug|ARM
+		Release|ARM = Release|ARM
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}.Debug|ARM.ActiveCfg = Debug|ARM
+		{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}.Debug|ARM.Build.0 = Debug|ARM
+		{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}.Release|ARM.ActiveCfg = Release|ARM
+		{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}.Release|ARM.Build.0 = Release|ARM
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {8F7532C0-C9E7-4A9B-8534-127D22A2B671}
+	EndGlobalSection
+EndGlobal

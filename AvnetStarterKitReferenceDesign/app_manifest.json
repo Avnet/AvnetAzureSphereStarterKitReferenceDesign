@@ -1,0 +1,19 @@
+{
+  "SchemaVersion": 1,
+  "Name" : "AvnetStarterKitReferenceDesign",
+  "ComponentId" : "f063e6e1-f3aa-4ed3-99b9-53ed22751def",
+  "EntryPoint": "/bin/app",
+  "CmdArgs": [],
+  "Capabilities": {
+    "AllowedConnections": [],
+    "AllowedTcpServerPorts": [],
+    "AllowedUdpServerPorts": [],
+    "Gpio": [ 8, 9, 10, 12 ],
+    "Uart": [],
+    "I2cMaster": [],
+    "SpiMaster": [],
+    "WifiConfig": false,
+    "NetworkConfig": false,
+    "SystemTime": false
+  }
+}
