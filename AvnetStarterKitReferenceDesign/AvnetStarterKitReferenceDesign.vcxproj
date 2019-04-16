@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
-    <TargetSysroot>1</TargetSysroot>
+    <TargetSysroot>1+Beta1902</TargetSysroot>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -41,10 +41,25 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="azure_iot_utilities.c" />
+    <ClCompile Include="device_twin.c" />
+    <ClCompile Include="i2c.c" />
+    <ClCompile Include="lps22hh_reg.c" />
+    <ClCompile Include="lsm6dso_reg.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="epoll_timerfd_utilities.c" />
+    <ClCompile Include="parson.c" />
+    <ClInclude Include="azure_iot_utilities.h" />
+    <ClInclude Include="build_options.h" />
+    <ClInclude Include="connection_strings.h" />
+    <ClInclude Include="deviceTwin.h" />
     <ClInclude Include="epoll_timerfd_utilities.h" />
+    <ClInclude Include="parson.h" />
     <UpToDateCheckInput Include="app_manifest.json" />
+    <ClInclude Include="i2c.h" />
+    <ClInclude Include="lps22hh_reg.h" />
+    <ClInclude Include="lsm6dso_reg.h" />
+    <ClInclude Include="mt3620_avnet_dev.h" />
     <ClInclude Include="mt3620_rdb.h" />
     <ClInclude Include="applibs_versions.h" />
   </ItemGroup>
@@ -55,7 +70,7 @@
       <AdditionalOptions>-Werror=implicit-function-declaration %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <LibraryDependencies>applibs;pthread;gcc_s;c</LibraryDependencies>
+      <LibraryDependencies>applibs;pthread;gcc_s;c;azureiot</LibraryDependencies>
       <AdditionalOptions>-Wl,--no-undefined -nodefaultlibs %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>

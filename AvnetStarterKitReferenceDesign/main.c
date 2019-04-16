@@ -1,46 +1,98 @@
-﻿#include <errno.h>
+﻿/* Copyright (c) Microsoft Corporation. All rights reserved.
+   Licensed under the MIT License. */
+
+   /************************************************************************************************
+   Name: AvnetStarterKitSimpleReferenceProject
+   Sphere OS: 19.02
+   This file contains the 'main' function. Program execution begins and ends there
+
+   Authors:
+   Peter Fenn (Avnet Engineering & Technology)
+   Brian Willess (Avnet Engineering & Technology)
+
+   Purpose:
+   Using the Avnet Azure Sphere Starter Kit demonstrate the following features
+
+   1. Read X,Y,Z accelerometer data from the onboard LSM6DSO device using the I2C Interface
+   2. Read X,YZ Angular rate data from the onboard LSM6DSO device using the I2C Interface
+   3. Read the barometric pressure from the onboard LPS22HH device using the I2C Interface
+   4. Read the temperature from the onboard LPS22HH device using the I2C Interface
+   5. Read the state of the A and B buttons
+   6. Read BSSID address, Wi-Fi AP SSID, Wi-Fi Frequency
+   7. Send X,Y,Z accelerometer data to an IoT Hub or IoT Central Application
+   8. Send barometric pressure data to an IoT Hub or IoT Central Application
+   9. Send button state data to an IoT Hub or IoT Central Application
+   10. Send BSSID address, Wi-Fi AP SSID, Wi-Fi Frequency data to an IoT Hub or IoT Central 
+      Application
+   11. Send the application version string up as a device twin property
+   12. Control user RGB LEDs from the cloud using device twin properties
+   13. Control optional Relay Click relays from the cloud using device twin properties
+
+   TODO
+   1. Add support for a OLED display
+   2. Add supprt for on-board light sensor
+   	 
+   *************************************************************************************************/
+
+#include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <math.h>
 
 // applibs_versions.h defines the API struct versions to use for applibs APIs.
 #include "applibs_versions.h"
 #include "epoll_timerfd_utilities.h"
+#include "i2c.h"
+#include "mt3620_avnet_dev.h"
+#include "deviceTwin.h"
+#include "azure_iot_utilities.h"
+#include "connection_strings.h"
+#include "build_options.h"
 
-#include <applibs/gpio.h>
 #include <applibs/log.h>
+#include <applibs/i2c.h>
+#include <applibs/gpio.h>
+#include <applibs/wificonfig.h>
+#include <azureiot/iothub_device_client_ll.h>
 
-#include "mt3620_rdb.h"
+// Provide local access to variables in other files
+extern twin_t twinArray[];
+extern int twinArraySize;
+extern IOTHUB_DEVICE_CLIENT_LL_HANDLE iothubClientHandle;
 
-// This sample C application for the MT3620 Reference Development Board (Azure Sphere)
-// blinks an LED.
-// The blink rate can be changed through a button press.
-//
-// It uses the API for the following Azure Sphere application libraries:
-// - gpio (digital input for button)
-// - log (messages shown in Visual Studio's Device Output window during debugging)
+// Support functions.
+static void TerminationHandler(int signalNumber);
+static int InitPeripheralsAndHandlers(void);
+static void ClosePeripheralsAndHandlers(void);
 
 // File descriptors - initialized to invalid value
-static int ledBlinkRateButtonGpioFd = -1;
+int epollFd = -1;
 static int buttonPollTimerFd = -1;
-static int blinkingLedGpioFd = -1;
-static int blinkingLedTimerFd = -1;
-static int epollFd = -1;
+static int buttonAGpioFd = -1;
+static int buttonBGpioFd = -1;
 
-// Button state variables
-static GPIO_Value_Type buttonState = GPIO_Value_High;
-static GPIO_Value_Type ledState = GPIO_Value_High;
+int userLedRedFd = -1;
+int userLedGreenFd = -1;
+int userLedBlueFd = -1;
+int appLedFd = -1;
+int wifiLedFd = -1;
+int clickSocket1Relay1Fd = -1;
+int clickSocket1Relay2Fd = -1;
 
-// Blink interval variables
-static const int numBlinkIntervals = 3;
-static const struct timespec blinkIntervals[] = {{0, 125000000}, {0, 250000000}, {0, 500000000}};
-static int blinkIntervalIndex = 0;
+// Button state variables, initilize them to button not-pressed (High)
+static GPIO_Value_Type buttonAState = GPIO_Value_High;
+static GPIO_Value_Type buttonBState = GPIO_Value_High;
+
+// Define the Json string format for the accelerator button press data
+static const char cstrButtonTelemetryJson[] = "{\"%s\":\"%d\"}";
 
 // Termination state
-static volatile sig_atomic_t terminationRequired = false;
+volatile sig_atomic_t terminationRequired = false;
 
 /// <summary>
 ///     Signal handler for termination requests. This handler must be async-signal-safe.
@@ -52,60 +104,98 @@ static void TerminationHandler(int signalNumber)
 }
 
 /// <summary>
-///     Handle LED timer event: blink LED.
-/// </summary>
-static void BlinkingLedTimerEventHandler(EventData *eventData)
-{
-    if (ConsumeTimerFdEvent(blinkingLedTimerFd) != 0) {
-        terminationRequired = true;
-        return;
-    }
-
-    // The blink interval has elapsed, so toggle the LED state
-    // The LED is active-low so GPIO_Value_Low is on and GPIO_Value_High is off
-    ledState = (ledState == GPIO_Value_Low ? GPIO_Value_High : GPIO_Value_Low);
-    int result = GPIO_SetValue(blinkingLedGpioFd, ledState);
-    if (result != 0) {
-        Log_Debug("ERROR: Could not set LED output value: %s (%d).\n", strerror(errno), errno);
-        terminationRequired = true;
-    }
-}
-
-/// <summary>
-///     Handle button timer event: if the button is pressed, change the LED blink rate.
+///     Handle button timer event: if the button is pressed, report the event to the IoT Hub.
 /// </summary>
 static void ButtonTimerEventHandler(EventData *eventData)
 {
-    if (ConsumeTimerFdEvent(buttonPollTimerFd) != 0) {
-        terminationRequired = true;
-        return;
-    }
 
-    // Check for a button press
-    GPIO_Value_Type newButtonState;
-    int result = GPIO_GetValue(ledBlinkRateButtonGpioFd, &newButtonState);
-    if (result != 0) {
-        Log_Debug("ERROR: Could not read button GPIO: %s (%d).\n", strerror(errno), errno);
-        terminationRequired = true;
-        return;
-    }
+	bool sendTelemetryButtonA = false;
+	bool sendTelemetryButtonB = false;
 
-    // If the button has just been pressed, change the LED blink interval
-    // The button has GPIO_Value_Low when pressed and GPIO_Value_High when released
-    if (newButtonState != buttonState) {
-        if (newButtonState == GPIO_Value_Low) {
-            blinkIntervalIndex = (blinkIntervalIndex + 1) % numBlinkIntervals;
-            if (SetTimerFdToPeriod(blinkingLedTimerFd, &blinkIntervals[blinkIntervalIndex]) != 0) {
-                terminationRequired = true;
-            }
-        }
-        buttonState = newButtonState;
-    }
+	if (ConsumeTimerFdEvent(buttonPollTimerFd) != 0) {
+		terminationRequired = true;
+		return;
+	}
+
+	// Check for button A press
+	GPIO_Value_Type newButtonAState;
+	int result = GPIO_GetValue(buttonAGpioFd, &newButtonAState);
+	if (result != 0) {
+		Log_Debug("ERROR: Could not read button GPIO: %s (%d).\n", strerror(errno), errno);
+		terminationRequired = true;
+		return;
+	}
+
+	// If the A button has just been pressed, send a telemetry message
+	// The button has GPIO_Value_Low when pressed and GPIO_Value_High when released
+	if (newButtonAState != buttonAState) {
+		if (newButtonAState == GPIO_Value_Low) {
+			Log_Debug("Button A pressed!\n");
+			sendTelemetryButtonA = true;
+		}
+		else {
+			Log_Debug("Button A released!\n");
+		}
+		
+		// Update the static variable to use next time we enter this routine
+		buttonAState = newButtonAState;
+	}
+
+	// Check for button B press
+	GPIO_Value_Type newButtonBState;
+	result = GPIO_GetValue(buttonBGpioFd, &newButtonBState);
+	if (result != 0) {
+		Log_Debug("ERROR: Could not read button GPIO: %s (%d).\n", strerror(errno), errno);
+		terminationRequired = true;
+		return;
+	}
+
+	// If the B button has just been pressed/released, send a telemetry message
+	// The button has GPIO_Value_Low when pressed and GPIO_Value_High when released
+	if (newButtonBState != buttonBState) {
+		if (newButtonBState == GPIO_Value_Low) {
+			// Send Telemetry here
+			Log_Debug("Button B pressed!\n");
+			sendTelemetryButtonB = true;
+		}
+		else {
+			Log_Debug("Button B released!\n");
+
+		}
+
+		// Update the static variable to use next time we enter this routine
+		buttonBState = newButtonBState;
+	}
+	
+	// If either button was pressed, then enter the code to send the telemetry message
+	if (sendTelemetryButtonA || sendTelemetryButtonB) {
+
+		char *pjsonBuffer = (char *)malloc(JSON_BUFFER_SIZE);
+		if (pjsonBuffer == NULL) {
+			Log_Debug("ERROR: not enough memory to send telemetry");
+		}
+
+		if (sendTelemetryButtonA) {
+			// construct the telemetry message  for Button A
+			snprintf(pjsonBuffer, JSON_BUFFER_SIZE, cstrButtonTelemetryJson, "buttonA", newButtonAState);
+			Log_Debug("\n[Info] Sending telemetry %s\n", pjsonBuffer);
+			AzureIoT_SendMessage(pjsonBuffer);
+		}
+
+		if (sendTelemetryButtonB) {
+			// construct the telemetry message for Button B
+			snprintf(pjsonBuffer, JSON_BUFFER_SIZE, cstrButtonTelemetryJson, "buttonB", newButtonBState);
+			Log_Debug("\n[Info] Sending telemetry %s\n", pjsonBuffer);
+			AzureIoT_SendMessage(pjsonBuffer);
+		}
+
+		free(pjsonBuffer);
+	}
+
 }
 
 // event handler data structures. Only the event handler field needs to be populated.
-static EventData buttonEventData = {.eventHandler = &ButtonTimerEventHandler};
-static EventData blinkingLedTimerEventData = {.eventHandler = &BlinkingLedTimerEventHandler};
+static EventData buttonEventData = { .eventHandler = &ButtonTimerEventHandler };
 
 /// <summary>
 ///     Set up SIGTERM termination handler, initialize peripherals, and set up event handlers.
@@ -123,33 +213,53 @@ static int InitPeripheralsAndHandlers(void)
         return -1;
     }
 
-    // Open button GPIO as input, and set up a timer to poll it
-    Log_Debug("Opening MT3620_RDB_BUTTON_A as input.\n");
-    ledBlinkRateButtonGpioFd = GPIO_OpenAsInput(MT3620_RDB_BUTTON_A);
-    if (ledBlinkRateButtonGpioFd < 0) {
-        Log_Debug("ERROR: Could not open button GPIO: %s (%d).\n", strerror(errno), errno);
-        return -1;
-    }
-    struct timespec buttonPressCheckPeriod = {0, 1000000};
-    buttonPollTimerFd =
-        CreateTimerFdAndAddToEpoll(epollFd, &buttonPressCheckPeriod, &buttonEventData, EPOLLIN);
-    if (buttonPollTimerFd < 0) {
-        return -1;
-    }
+	if (initI2c() == -1) {
+		return -1;
+	}
+	
+	// Traverse the twin Array and for each GPIO item in the list open the file descriptor
+	for (int i = 0; i < twinArraySize; i++) {
 
-    // Open LED GPIO, set as output with value GPIO_Value_High (off), and set up a timer to poll it
-    Log_Debug("Opening MT3620_RDB_LED1_RED.\n");
-    blinkingLedGpioFd =
-        GPIO_OpenAsOutput(MT3620_RDB_LED1_RED, GPIO_OutputMode_PushPull, GPIO_Value_High);
-    if (blinkingLedGpioFd < 0) {
-        Log_Debug("ERROR: Could not open LED GPIO: %s (%d).\n", strerror(errno), errno);
-        return -1;
-    }
-    blinkingLedTimerFd = CreateTimerFdAndAddToEpoll(epollFd, &blinkIntervals[blinkIntervalIndex],
-                                                    &blinkingLedTimerEventData, EPOLLIN);
-    if (blinkingLedTimerFd < 0) {
-        return -1;
-    }
+		// Verify that this entry is a GPIO entry
+		if (twinArray[i].twinGPIO != NO_GPIO_ASSOCIATED_WITH_TWIN) {
+
+			*twinArray[i].twinFd = -1;
+
+			// For each item in the data structure, initialize the file descriptor and open the GPIO for output.  Initilize each GPIO to its specific inactive state.
+			*twinArray[i].twinFd = (int)GPIO_OpenAsOutput(twinArray[i].twinGPIO, GPIO_OutputMode_PushPull, twinArray[i].active_high ? GPIO_Value_Low : GPIO_Value_High);
+
+			if (*twinArray[i].twinFd < 0) {
+				Log_Debug("ERROR: Could not open LED %d: %s (%d).\n", twinArray[i].twinGPIO, strerror(errno), errno);
+				return -1;
+			}
+		}
+	}
+
+	// Open button A GPIO as input
+	Log_Debug("Opening Starter Kit Button A as input.\n");
+	buttonAGpioFd = GPIO_OpenAsInput(MT3620_RDB_BUTTON_A);
+	if (buttonAGpioFd < 0) {
+		Log_Debug("ERROR: Could not open button A GPIO: %s (%d).\n", strerror(errno), errno);
+		return -1;
+	}
+	// Open button B GPIO as input
+	Log_Debug("Opening Starter Kit Button B as input.\n");
+	buttonBGpioFd = GPIO_OpenAsInput(MT3620_RDB_BUTTON_B);
+	if (buttonBGpioFd < 0) {
+		Log_Debug("ERROR: Could not open button B GPIO: %s (%d).\n", strerror(errno), errno);
+		return -1;
+	}
+
+	// Set up a timer to poll the buttons
+	struct timespec buttonPressCheckPeriod = { 0, 1000000 };
+	buttonPollTimerFd =
+		CreateTimerFdAndAddToEpoll(epollFd, &buttonPressCheckPeriod, &buttonEventData, EPOLLIN);
+	if (buttonPollTimerFd < 0) {
+		return -1;
+	}
+
+	// Tell the system about the callback function that gets called when we receive a device twin update message from Azure
+	AzureIoT_SetDeviceTwinUpdateCallback(&deviceTwinChangedHandler);
 
     return 0;
 }
@@ -159,17 +269,23 @@ static int InitPeripheralsAndHandlers(void)
 /// </summary>
 static void ClosePeripheralsAndHandlers(void)
 {
-    // Leave the LED off
-    if (blinkingLedGpioFd >= 0) {
-        GPIO_SetValue(blinkingLedGpioFd, GPIO_Value_High);
-    }
-
     Log_Debug("Closing file descriptors.\n");
-    CloseFdAndPrintError(blinkingLedTimerFd, "BlinkingLedTimer");
-    CloseFdAndPrintError(blinkingLedGpioFd, "BlinkingLedGpio");
-    CloseFdAndPrintError(buttonPollTimerFd, "ButtonPollTimer");
-    CloseFdAndPrintError(ledBlinkRateButtonGpioFd, "LedBlinkRateButtonGpio");
+    
+	closeI2c();
     CloseFdAndPrintError(epollFd, "Epoll");
+	CloseFdAndPrintError(buttonPollTimerFd, "buttonPoll");
+	CloseFdAndPrintError(buttonAGpioFd, "buttonA");
+	CloseFdAndPrintError(buttonBGpioFd, "buttonB");
+
+	// Traverse the twin Array and for each GPIO item in the list the close the file descriptor
+	for (int i = 0; i < twinArraySize; i++) {
+
+		// Verify that this entry has an open file descriptor
+		if (twinArray[i].twinGPIO != NO_GPIO_ASSOCIATED_WITH_TWIN) {
+
+			CloseFdAndPrintError(*twinArray[i].twinFd, twinArray[i].twinKey);
+		}
+	}
 }
 
 /// <summary>
@@ -177,7 +293,19 @@ static void ClosePeripheralsAndHandlers(void)
 /// </summary>
 int main(int argc, char *argv[])
 {
-    Log_Debug("Blink application starting.\n");
+	// Variable to help us send the version string up only once
+	bool versionStringSent = false;
+	bool networkConfigSent = false;
+	char ssid[128];
+	uint32_t frequency;
+	char bssid[20];
+	
+	// Clear the ssid array
+	memset(ssid, 0, 128);
+
+	Log_Debug("Version String: %s\n", argv[1]);
+
+	Log_Debug("Avnet Starter Kit Simple Reference Application starting.\n");
     if (InitPeripheralsAndHandlers() != 0) {
         terminationRequired = true;
     }
@@ -187,6 +315,60 @@ int main(int argc, char *argv[])
         if (WaitForEventAndCallHandler(epollFd) != 0) {
             terminationRequired = true;
         }
+
+#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
+		// Setup the IoT Hub client.
+		// Notes:
+		// - it is safe to call this function even if the client has already been set up, as in
+		//   this case it would have no effect;
+		// - a failure to setup the client is a fatal error.
+		if (!AzureIoT_SetupClient()) {
+			Log_Debug("ERROR: Failed to set up IoT Hub client\n");
+			break;
+		}
+#endif 
+
+		WifiConfig_ConnectedNetwork network;
+		int result = WifiConfig_GetCurrentNetwork(&network);
+		if (result < 0) {
+			// Log_Debug("INFO: Not currently connected to a WiFi network.\n");
+		}
+		else {
+
+			frequency = network.frequencyMHz;
+			snprintf(bssid, JSON_BUFFER_SIZE, "%02x:%02x:%02x:%02x:%02x:%02x",
+				network.bssid[0], network.bssid[1], network.bssid[2], 
+				network.bssid[3], network.bssid[4], network.bssid[5]);
+
+			if ((strncmp(ssid, (char*)&network.ssid, network.ssidLength)!=0) || !networkConfigSent) {
+				
+				memset(ssid, 0, 128);
+				strncpy(ssid, network.ssid, network.ssidLength);
+				Log_Debug("SSID: %s\n", ssid);
+				Log_Debug("Frequency: %dMHz\n", frequency);
+				Log_Debug("bssid: %s\n", bssid);
+				networkConfigSent = true;
+
+#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
+				// Note that we send up this data to Azure if it changes, but the IoT Central Properties elements only 
+				// show the data that was currenet when the device first connected to Azure.
+				checkAndUpdateDeviceTwin("ssid", &ssid, TYPE_STRING, true);
+				checkAndUpdateDeviceTwin("freq", &frequency, TYPE_INT, false);
+				checkAndUpdateDeviceTwin("bssid", &bssid, TYPE_STRING, false);
+#endif 
+			}
+		}	   		 	  	  	   	
+#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
+		if (iothubClientHandle != NULL && !versionStringSent) {
+
+			checkAndUpdateDeviceTwin("versionString", argv[1], TYPE_STRING, false);
+			versionStringSent = true;
+		}
+
+		// AzureIoT_DoPeriodicTasks() needs to be called frequently in order to keep active
+		// the flow of data with the Azure IoT Hub
+		AzureIoT_DoPeriodicTasks();
+#endif
     }
 
     ClosePeripheralsAndHandlers();
