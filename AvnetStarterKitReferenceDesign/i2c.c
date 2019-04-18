@@ -118,9 +118,9 @@ void AccelTimerEventHandler(EventData *eventData)
 		memset(data_raw_acceleration.u8bit, 0x00, 3 * sizeof(int16_t));
 		lsm6dso_acceleration_raw_get(&dev_ctx, data_raw_acceleration.u8bit);
 
-		acceleration_mg[0] = (float)(data_raw_acceleration.i16bit[0] * 0.122) / 1000;
-		acceleration_mg[1] = (float)(data_raw_acceleration.i16bit[1] * 0.122) / 1000;
-		acceleration_mg[2] = (float)(data_raw_acceleration.i16bit[2] * 0.122) / 1000;
+		acceleration_mg[0] = lsm6dso_from_fs4_to_mg(data_raw_acceleration.i16bit[0]);
+		acceleration_mg[1] = lsm6dso_from_fs4_to_mg(data_raw_acceleration.i16bit[1]);
+		acceleration_mg[2] = lsm6dso_from_fs4_to_mg(data_raw_acceleration.i16bit[2]);
 
 		Log_Debug("\nLSM6DSO: Acceleration [mg]  : %.4lf, %.4lf, %.4lf\n",
 			acceleration_mg[0], acceleration_mg[1], acceleration_mg[2]);
@@ -152,7 +152,7 @@ void AccelTimerEventHandler(EventData *eventData)
 
 		Log_Debug("LSM6DSO: Temperature  [degC]: %.2f\r\n", lsm6dsoTemperature_degC);
 	}
-	
+
 	// Read the sensors on the lsm6dso device
 
 	lps22hh_read_reg(&pressure_ctx, LPS22HH_STATUS, (uint8_t *)&lps22hhReg, 1);
@@ -261,7 +261,7 @@ int initI2c(void) {
 
 	// lps22hh specific init
 
-	// Initialize lis2mdl mems driver interface
+	// Initialize lps22hh mems driver interface
 	pressure_ctx.read_reg = lsm6dso_read_lps22hh_cx;
 	pressure_ctx.write_reg = lsm6dso_write_lps22hh_cx;
 	pressure_ctx.handle = &i2cFd;
@@ -402,11 +402,7 @@ static int32_t platform_read(int *fD, uint8_t reg, uint8_t *bufp,
 	Log_Debug("platform_read()\n");
 	Log_Debug("reg: %0x\n", reg);
 	Log_Debug("len: %d\n", len);
-	Log_Debug("Empty bufp contents: ");
-	for (int i = 0; i < len; i++) {
-		Log_Debug("%0x: ", bufp[i]);
-	}
-	Log_Debug("\n");
+;
 #endif
 
 	// Set the register address to read
@@ -424,7 +420,7 @@ static int32_t platform_read(int *fD, uint8_t reg, uint8_t *bufp,
 	}
 
 #ifdef ENABLE_READ_WRITE_DEBUG
-	Log_Debug("Completed bufp contents: ");
+	Log_Debug("Read returned: ");
 	for (int i = 0; i < len; i++) {
 		Log_Debug("%0x: ", bufp[i]);
 	}
@@ -516,7 +512,7 @@ static int32_t lsm6dso_read_lps22hh_cx(void* ctx, uint8_t reg, uint8_t* data, ui
 		sh_cfg_read.slv_add = (LPS22HH_I2C_ADD_L &0xFEU) >> 1; /* 7bit I2C address */
 		sh_cfg_read.slv_subadd = reg+i;
 		sh_cfg_read.slv_len = 1;
-	
+
 		// Call the command to read the data from the sensor hub.
 		// This data will be read from the device connected to the 
 		// sensor hub, and saved into a register for us to read.
@@ -540,7 +536,7 @@ static int32_t lsm6dso_read_lps22hh_cx(void* ctx, uint8_t reg, uint8_t* data, ui
 			HAL_Delay(20);
 			lsm6dso_sh_status_get(&dev_ctx, &master_status);
 		} while (!master_status.sens_hub_endop);
-	
+
 		/* Disable I2C master and XL(trigger). */
 		lsm6dso_sh_master_set(&dev_ctx, PROPERTY_DISABLE);
 		lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_OFF);
@@ -552,19 +548,17 @@ static int32_t lsm6dso_read_lps22hh_cx(void* ctx, uint8_t reg, uint8_t* data, ui
 		lsm6dso_sh_read_data_raw_get(&dev_ctx, buffer);
 		data[i] = buffer[1];
 
+		/* Re-enable accelerometer */
+		lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_104Hz);
+
 #ifdef ENABLE_READ_WRITE_DEBUG
-		for (int i = 0; i < 18; i++) {
-			Log_Debug("Slave[%d]: 0x%0x\n",i, buffer[i]);
+		Log_Debug("Read %d bytes: ", len);
+		for (int i = 0; i < len; i++) {
+			Log_Debug("[%0x] ", data[i]);
 		}
+		Log_Debug("\n", len);
 #endif 
 	}
-#ifdef ENABLE_READ_WRITE_DEBUG
-	Log_Debug("Read %d bytes: ", len);
-	for (int i = 0; i < len; i++) {
-		Log_Debug("[%0x] ", data[i]);
-	}
-	Log_Debug("\n", len);
-#endif 
 
 	return ret;
 }
