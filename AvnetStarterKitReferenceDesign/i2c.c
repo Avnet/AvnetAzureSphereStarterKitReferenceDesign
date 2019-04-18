@@ -548,9 +548,6 @@ static int32_t lsm6dso_read_lps22hh_cx(void* ctx, uint8_t reg, uint8_t* data, ui
 		lsm6dso_sh_read_data_raw_get(&dev_ctx, buffer);
 		data[i] = buffer[1];
 
-		/* Re-enable accelerometer */
-		lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_104Hz);
-
 #ifdef ENABLE_READ_WRITE_DEBUG
 		Log_Debug("Read %d bytes: ", len);
 		for (int i = 0; i < len; i++) {
@@ -559,6 +556,9 @@ static int32_t lsm6dso_read_lps22hh_cx(void* ctx, uint8_t reg, uint8_t* data, ui
 		Log_Debug("\n", len);
 #endif 
 	}
+
+	/* Re-enable accelerometer */
+	lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_104Hz);
 
 	return ret;
 }
