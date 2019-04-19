@@ -149,7 +149,7 @@ void AccelTimerEventHandler(EventData *eventData)
 		memset(data_raw_temperature.u8bit, 0x00, sizeof(int16_t));
 		lsm6dso_temperature_raw_get(&dev_ctx, data_raw_temperature.u8bit);
 		lsm6dsoTemperature_degC = lsm6dso_from_lsb_to_celsius(data_raw_temperature.i16bit);
-
+		
 		Log_Debug("LSM6DSO: Temperature  [degC]: %.2f\r\n", lsm6dsoTemperature_degC);
 	}
 
@@ -163,7 +163,8 @@ void AccelTimerEventHandler(EventData *eventData)
 	{
 		memset(data_raw_pressure.u8bit, 0x00, sizeof(int32_t));
 		lps22hh_pressure_raw_get(&pressure_ctx, data_raw_pressure.u8bit);
-		pressure_hPa = lps22hh_from_lsb_to_hpa((uint16_t)data_raw_pressure.i32bit);
+
+		pressure_hPa = lps22hh_from_lsb_to_hpa((uint32_t)data_raw_pressure.u8bit);
 
 		memset(data_raw_temperature.u8bit, 0x00, sizeof(int16_t));
 		lps22hh_temperature_raw_get(&pressure_ctx, data_raw_temperature.u8bit);
