@@ -54,10 +54,11 @@
 /* Private variables ---------------------------------------------------------*/
 static axis3bit16_t data_raw_acceleration;
 static axis3bit16_t data_raw_angular_rate;
+static axis3bit16_t raw_angular_rate_calibration;
 static axis1bit32_t data_raw_pressure;
 static axis1bit16_t data_raw_temperature;
 static float acceleration_mg[3];
-static float angular_rate_mdps[3];
+static float angular_rate_dps[3];
 static float lsm6dsoTemperature_degC;
 static float pressure_hPa;
 static float lps22hhTemperature_degC;
@@ -136,12 +137,13 @@ void AccelTimerEventHandler(EventData *eventData)
 		memset(data_raw_angular_rate.u8bit, 0x00, 3 * sizeof(int16_t));
 		lsm6dso_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate.u8bit);
 
-		angular_rate_mdps[0] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[0]);
-		angular_rate_mdps[1] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[1]);
-		angular_rate_mdps[2] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[2]);
+		// Before we store the mdps values subtract the calibration data we captured at startup.
+		angular_rate_dps[0] = (lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[0] - raw_angular_rate_calibration.i16bit[0])) / 1000.0;
+		angular_rate_dps[1] = (lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[1] - raw_angular_rate_calibration.i16bit[1])) / 1000.0;
+		angular_rate_dps[2] = (lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[2] - raw_angular_rate_calibration.i16bit[2])) / 1000.0;
 
-		Log_Debug("LSM6DSO: Angular rate [mdps]: %4.2f, %4.2f, %4.2f\r\n",
-			angular_rate_mdps[0], angular_rate_mdps[1], angular_rate_mdps[2]);
+		Log_Debug("LSM6DSO: Angular rate [dps] : %4.2f, %4.2f, %4.2f\r\n",
+			angular_rate_dps[0], angular_rate_dps[1], angular_rate_dps[2]);
 
 	}
 
@@ -319,6 +321,44 @@ int initI2c(void) {
 			return -1;
 		}
 	}
+
+	// Read the raw angular rate data from the device to use as offsets.  We're making the assumption that the device
+	// is stationary.
+
+	uint8_t reg;
+
+	Log_Debug("LSM6DSO: Calibrating angular rate . . .\n");
+
+	do {
+		// Read the calibration values
+		lsm6dso_gy_flag_data_ready_get(&dev_ctx, &reg);
+		if (reg)
+		{
+			// Read angular rate field data to use for calibration offsets
+			memset(data_raw_angular_rate.u8bit, 0x00, 3 * sizeof(int16_t));
+			lsm6dso_angular_rate_raw_get(&dev_ctx, raw_angular_rate_calibration.u8bit);
+		}
+
+		// Read the angular data rate again and verify that after applying the calibration, we have 0 angular rate in all directions
+
+		lsm6dso_gy_flag_data_ready_get(&dev_ctx, &reg);
+		if (reg)
+		{
+			// Read angular rate field data
+			memset(data_raw_angular_rate.u8bit, 0x00, 3 * sizeof(int16_t));
+			lsm6dso_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate.u8bit);
+
+			// Before we store the mdps values subtract the calibration data we captured at startup.
+			angular_rate_dps[0] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[0] - raw_angular_rate_calibration.i16bit[0]);
+			angular_rate_dps[1] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[1] - raw_angular_rate_calibration.i16bit[1]);
+			angular_rate_dps[2] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[2] - raw_angular_rate_calibration.i16bit[2]);
+		}
+
+	// If the angular values after applying the offset are not zero, then do it again!
+	} while (angular_rate_dps[0] == angular_rate_dps[1] == angular_rate_dps[2] == 0.0);
+
+	Log_Debug("LSM6DSO: Calibrating angular rate complete!\n");
+
 
 	// Init the epoll interface to periodically run the AccelTimerEventHandler routine where we read the sensors
 
