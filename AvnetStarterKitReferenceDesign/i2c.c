@@ -327,7 +327,9 @@ int initI2c(void) {
 
 	uint8_t reg;
 
-	Log_Debug("LSM6DSO: Calibrating angular rate . . .\n");
+	
+	Log_Debug("LSM6DSO: Calibrating angular rate . . .\n"); 
+	Log_Debug("LSM6DSO: Please make sure the device is stationary.\n");
 
 	do {
 		// Read the calibration values
