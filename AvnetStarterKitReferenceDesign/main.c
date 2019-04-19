@@ -2,7 +2,7 @@
    Licensed under the MIT License. */
 
    /************************************************************************************************
-   Name: AvnetStarterKitSimpleReferenceProject
+   Name: AvnetStarterKitReferenceDesign
    Sphere OS: 19.02
    This file contains the 'main' function. Program execution begins and ends there
 
@@ -19,15 +19,17 @@
    4. Read the temperature from the onboard LPS22HH device using the I2C Interface
    5. Read the state of the A and B buttons
    6. Read BSSID address, Wi-Fi AP SSID, Wi-Fi Frequency
-   7. Send X,Y,Z accelerometer data to an IoT Hub or IoT Central Application
-   8. Send barometric pressure data to an IoT Hub or IoT Central Application
-   9. Send button state data to an IoT Hub or IoT Central Application
-   10. Send BSSID address, Wi-Fi AP SSID, Wi-Fi Frequency data to an IoT Hub or IoT Central 
-      Application
-   11. Send the application version string up as a device twin property
+   *************************************************************************************************
+      Connected application features: When connected to Azure IoT Hub or IoT Central
+   *************************************************************************************************
+   7. Send X,Y,Z accelerometer data to Azure
+   8. Send barometric pressure data to Azure
+   9. Send button state data to Azure
+   10. Send BSSID address, Wi-Fi AP SSID, Wi-Fi Frequency data to Azure
+   11. Send the application version string to Azure
    12. Control user RGB LEDs from the cloud using device twin properties
    13. Control optional Relay Click relays from the cloud using device twin properties
-
+   14. Send Application version up as a device twin property
    TODO
    1. Add support for a OLED display
    2. Add supprt for on-board light sensor
@@ -38,7 +40,7 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string.h> 
 #include <time.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -87,6 +89,10 @@ int clickSocket1Relay2Fd = -1;
 // Button state variables, initilize them to button not-pressed (High)
 static GPIO_Value_Type buttonAState = GPIO_Value_High;
 static GPIO_Value_Type buttonBState = GPIO_Value_High;
+
+#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
+	bool versionStringSent = false;
+#endif
 
 // Define the Json string format for the accelerator button press data
 static const char cstrButtonTelemetryJson[] = "{\"%s\":\"%d\"}";

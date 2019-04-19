@@ -101,6 +101,9 @@ void AccelTimerEventHandler(EventData *eventData)
 	uint8_t reg;
 	lps22hh_reg_t lps22hhReg;
 
+#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
+	static bool firstPass = true;
+#endif
 	// Consume the event.  If we don't do this we'll come right back 
 	// to process the same event again
 	if (ConsumeTimerFdEvent(accelTimerFd) != 0) {
@@ -132,7 +135,7 @@ void AccelTimerEventHandler(EventData *eventData)
 		// Read angular rate field data
 		memset(data_raw_angular_rate.u8bit, 0x00, 3 * sizeof(int16_t));
 		lsm6dso_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate.u8bit);
-	
+
 		angular_rate_mdps[0] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[0]);
 		angular_rate_mdps[1] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[1]);
 		angular_rate_mdps[2] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[2]);
@@ -149,7 +152,7 @@ void AccelTimerEventHandler(EventData *eventData)
 		memset(data_raw_temperature.u8bit, 0x00, sizeof(int16_t));
 		lsm6dso_temperature_raw_get(&dev_ctx, data_raw_temperature.u8bit);
 		lsm6dsoTemperature_degC = lsm6dso_from_lsb_to_celsius(data_raw_temperature.i16bit);
-		
+
 		Log_Debug("LSM6DSO: Temperature  [degC]: %.2f\r\n", lsm6dsoTemperature_degC);
 	}
 
@@ -173,21 +176,30 @@ void AccelTimerEventHandler(EventData *eventData)
 		Log_Debug("LPS22HH: Pressure     [hPa] : %.2f\r\n", pressure_hPa);
 		Log_Debug("LPS22HH: Temperature  [degC]: %.2f\r\n", lps22hhTemperature_degC);
 	}
-	
-#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
-	// Allocate memory for a telemetry message to Azure
-	char *pjsonBuffer = (char *)malloc(JSON_BUFFER_SIZE);
-	if (pjsonBuffer == NULL) {
-		Log_Debug("ERROR: not enough memory to send telemetry");
-	}
-	
-	// construct the telemetry message
-	snprintf(pjsonBuffer, JSON_BUFFER_SIZE, "{\"gX\":\"%.4lf\", \"gY\":\"%.4lf\", \"gZ\":\"%.4lf\", \"pressure\": \"%.2f\", \"temp\": \"%.2lf\"}", 
-		acceleration_mg[0], acceleration_mg[1], acceleration_mg[2], pressure_hPa, lps22hhTemperature_degC);
 
-	Log_Debug("\n[Info] Sending telemetry: %s\n", pjsonBuffer);
-	AzureIoT_SendMessage(pjsonBuffer);
-	free(pjsonBuffer);
+#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
+
+	// We've seen that the first read of the Accelerometer data is garbage.  If this is the first pass
+	// reading data, don't report it to Azure.  Since we're graphing data in Azure, this data point
+	// will skew the data.
+	if (!firstPass) {
+
+		// Allocate memory for a telemetry message to Azure
+		char *pjsonBuffer = (char *)malloc(JSON_BUFFER_SIZE);
+		if (pjsonBuffer == NULL) {
+			Log_Debug("ERROR: not enough memory to send telemetry");
+		}
+
+		// construct the telemetry message
+		snprintf(pjsonBuffer, JSON_BUFFER_SIZE, "{\"gX\":\"%.4lf\", \"gY\":\"%.4lf\", \"gZ\":\"%.4lf\", \"pressure\": \"%.2f\", \"temp\": \"%.2lf\"}",
+			acceleration_mg[0], acceleration_mg[1], acceleration_mg[2], pressure_hPa, lps22hhTemperature_degC);
+
+		Log_Debug("\n[Info] Sending telemetry: %s\n", pjsonBuffer);
+		AzureIoT_SendMessage(pjsonBuffer);
+		free(pjsonBuffer);
+
+		firstPass = false;
+}
 #endif 
 
 }
