@@ -162,7 +162,7 @@ void deviceTwinChangedHandler(JSON_Object * desiredProperties)
 
 			switch (twinArray[i].twinType) {
 			case TYPE_BOOL:
-				*(bool*)twinArray[i].twinVar = (bool)json_object_get_boolean(desiredProperties, "value");
+				*(bool*)twinArray[i].twinVar = (bool)json_object_get_boolean(currentJSONProperties, "value");
 				result = GPIO_SetValue(*twinArray[i].twinFd, twinArray[i].active_high ? (GPIO_Value)*(bool*)twinArray[i].twinVar : !(GPIO_Value)*(bool*)twinArray[i].twinVar);
 
 				if (result != 0) {
