@@ -168,8 +168,8 @@ void AccelTimerEventHandler(EventData *eventData)
 	{
 		memset(data_raw_pressure.u8bit, 0x00, sizeof(int32_t));
 		lps22hh_pressure_raw_get(&pressure_ctx, data_raw_pressure.u8bit);
-
-		pressure_hPa = lps22hh_from_lsb_to_hpa((uint32_t)data_raw_pressure.u8bit);
+	
+		pressure_hPa = lps22hh_from_lsb_to_hpa(data_raw_pressure.i32bit);
 
 		memset(data_raw_temperature.u8bit, 0x00, sizeof(int16_t));
 		lps22hh_temperature_raw_get(&pressure_ctx, data_raw_temperature.u8bit);
