@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
 #if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
 				// Note that we send up this data to Azure if it changes, but the IoT Central Properties elements only 
 				// show the data that was currenet when the device first connected to Azure.
-				checkAndUpdateDeviceTwin("ssid", &ssid, TYPE_STRING, true);
+				checkAndUpdateDeviceTwin("ssid", &ssid, TYPE_STRING, false);
 				checkAndUpdateDeviceTwin("freq", &frequency, TYPE_INT, false);
 				checkAndUpdateDeviceTwin("bssid", &bssid, TYPE_STRING, false);
 #endif 
