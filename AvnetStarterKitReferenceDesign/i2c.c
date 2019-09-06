@@ -338,8 +338,8 @@ int initI2c(void) {
 
 		if (failCount-- == 0) {
 			bool lps22hhDetected = false;
-			Log_Debug("Failed to read LSM22HH device ID, disabling all access to LPS22HH device\n");
-			Log_Debug("Sometimes a power cycle will correct this issue\n");
+			Log_Debug("Failed to read LPS22HH device ID, disabling all access to LPS22HH device!\n");
+			Log_Debug("Usually a power cycle will correct this issue\n");
 			break;
 		}
 	}
@@ -348,7 +348,6 @@ int initI2c(void) {
 	// is stationary.
 
 	uint8_t reg;
-
 	
 	Log_Debug("LSM6DSO: Calibrating angular rate . . .\n"); 
 	Log_Debug("LSM6DSO: Please make sure the device is stationary.\n");
