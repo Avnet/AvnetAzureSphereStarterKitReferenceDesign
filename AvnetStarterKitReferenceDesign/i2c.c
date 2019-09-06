@@ -339,6 +339,7 @@ int initI2c(void) {
 		if (failCount-- == 0) {
 			bool lps22hhDetected = false;
 			Log_Debug("Failed to read LSM22HH device ID, disabling all access to LPS22HH device\n");
+			Log_Debug("Sometimes a power cycle will correct this issue\n");
 			break;
 		}
 	}
