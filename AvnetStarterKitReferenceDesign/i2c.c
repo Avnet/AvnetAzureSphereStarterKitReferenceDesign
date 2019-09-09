@@ -68,6 +68,8 @@ static int accelTimerFd = -1;
 const uint8_t lsm6dsOAddress = LSM6DSO_ADDRESS;     // Addr = 0x6A
 lsm6dso_ctx_t dev_ctx;
 lps22hh_ctx_t pressure_ctx;
+bool lps22hhDetected;
+
 
 //Extern variables
 int i2cFd = -1;
@@ -158,51 +160,62 @@ void AccelTimerEventHandler(EventData *eventData)
 		Log_Debug("LSM6DSO: Temperature  [degC]: %.2f\r\n", lsm6dsoTemperature_degC);
 	}
 
-	// Read the sensors on the lsm6dso device
+	// Read the lps22hh sensor on the lsm6dso device
 
-	lps22hh_read_reg(&pressure_ctx, LPS22HH_STATUS, (uint8_t *)&lps22hhReg, 1);
+	// Initialize the data structures to 0s.
+	memset(data_raw_pressure.u8bit, 0x00, sizeof(int32_t));
+	memset(data_raw_temperature.u8bit, 0x00, sizeof(int16_t));
 
-	//Read output only if new value is available
+	if (lps22hhDetected) {
+		lps22hh_read_reg(&pressure_ctx, LPS22HH_STATUS, (uint8_t *)&lps22hhReg, 1);
 
-	if ((lps22hhReg.status.p_da == 1) && (lps22hhReg.status.t_da == 1))
-	{
-		memset(data_raw_pressure.u8bit, 0x00, sizeof(int32_t));
-		lps22hh_pressure_raw_get(&pressure_ctx, data_raw_pressure.u8bit);
-	
-		pressure_hPa = lps22hh_from_lsb_to_hpa(data_raw_pressure.i32bit);
+		//Read output only if new value is available
 
-		memset(data_raw_temperature.u8bit, 0x00, sizeof(int16_t));
-		lps22hh_temperature_raw_get(&pressure_ctx, data_raw_temperature.u8bit);
-		lps22hhTemperature_degC = lps22hh_from_lsb_to_celsius(data_raw_temperature.i16bit);
+		if ((lps22hhReg.status.p_da == 1) && (lps22hhReg.status.t_da == 1))
+		{
+			lps22hh_pressure_raw_get(&pressure_ctx, data_raw_pressure.u8bit);
 
-		Log_Debug("LPS22HH: Pressure     [hPa] : %.2f\r\n", pressure_hPa);
-		Log_Debug("LPS22HH: Temperature  [degC]: %.2f\r\n", lps22hhTemperature_degC);
+			pressure_hPa = lps22hh_from_lsb_to_hpa(data_raw_pressure.i32bit);
+
+			lps22hh_temperature_raw_get(&pressure_ctx, data_raw_temperature.u8bit);
+			lps22hhTemperature_degC = lps22hh_from_lsb_to_celsius(data_raw_temperature.i16bit);
+
+			Log_Debug("LPS22HH: Pressure     [hPa] : %.2f\r\n", pressure_hPa);
+			Log_Debug("LPS22HH: Temperature  [degC]: %.2f\r\n", lps22hhTemperature_degC);
+		}
 	}
+	// LPS22HH was not detected
+	else {
+
+		Log_Debug("LPS22HH: Pressure     [hPa] : Not read!\r\n");
+		Log_Debug("LPS22HH: Temperature  [degC]: Not read!\r\n");
+	}
+
 
 #if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
 
-	// We've seen that the first read of the Accelerometer data is garbage.  If this is the first pass
-	// reading data, don't report it to Azure.  Since we're graphing data in Azure, this data point
-	// will skew the data.
-	if (!firstPass) {
+		// We've seen that the first read of the Accelerometer data is garbage.  If this is the first pass
+		// reading data, don't report it to Azure.  Since we're graphing data in Azure, this data point
+		// will skew the data.
+		if (!firstPass) {
 
-		// Allocate memory for a telemetry message to Azure
-		char *pjsonBuffer = (char *)malloc(JSON_BUFFER_SIZE);
-		if (pjsonBuffer == NULL) {
-			Log_Debug("ERROR: not enough memory to send telemetry");
+			// Allocate memory for a telemetry message to Azure
+			char *pjsonBuffer = (char *)malloc(JSON_BUFFER_SIZE);
+			if (pjsonBuffer == NULL) {
+				Log_Debug("ERROR: not enough memory to send telemetry");
+			}
+
+			// construct the telemetry message
+			snprintf(pjsonBuffer, JSON_BUFFER_SIZE, "{\"gX\":\"%.4lf\", \"gY\":\"%.4lf\", \"gZ\":\"%.4lf\", \"pressure\": \"%.2f\", \"aX\": \"%4.2f\", \"aY\": \"%4.2f\", \"aZ\": \"%4.2f\"}",
+				acceleration_mg[0], acceleration_mg[1], acceleration_mg[2], pressure_hPa, angular_rate_dps[0], angular_rate_dps[1], angular_rate_dps[2]);
+
+			Log_Debug("\n[Info] Sending telemetry: %s\n", pjsonBuffer);
+			AzureIoT_SendMessage(pjsonBuffer);
+			free(pjsonBuffer);
+
 		}
 
-		// construct the telemetry message
-		snprintf(pjsonBuffer, JSON_BUFFER_SIZE, "{\"gX\":\"%.4lf\", \"gY\":\"%.4lf\", \"gZ\":\"%.4lf\", \"pressure\": \"%.2f\", \"aX\": \"%4.2f\", \"aY\": \"%4.2f\", \"aZ\": \"%4.2f\"}",
-			acceleration_mg[0], acceleration_mg[1], acceleration_mg[2], pressure_hPa, angular_rate_dps[0], angular_rate_dps[1], angular_rate_dps[2]);
-
-		Log_Debug("\n[Info] Sending telemetry: %s\n", pjsonBuffer);
-		AzureIoT_SendMessage(pjsonBuffer);
-		free(pjsonBuffer);
-
-}
-
-	firstPass = false;
+		firstPass = false;
 
 #endif 
 
@@ -278,12 +291,15 @@ int initI2c(void) {
 
 	// lps22hh specific init
 
+	// Default the flag to false.  If we fail to communicate with the LPS22HH device, this flag
+	// will cause application execution to skip over LPS22HH specific code.
+	lps22hhDetected = false;
+
 	// Initialize lps22hh mems driver interface
 	pressure_ctx.read_reg = lsm6dso_read_lps22hh_cx;
 	pressure_ctx.write_reg = lsm6dso_write_lps22hh_cx;
 	pressure_ctx.handle = &i2cFd;
 
-	bool lps22hhDetected = false;
 	int failCount = 10;
 
 	while (!lps22hhDetected) {
@@ -319,8 +335,10 @@ int initI2c(void) {
 		}
 
 		if (failCount-- == 0) {
-			Log_Debug("Failed to read LSM22HH device ID, exiting\n");
-			return -1;
+			bool lps22hhDetected = false;
+			Log_Debug("Failed to read LPS22HH device ID, disabling all access to LPS22HH device!\n");
+			Log_Debug("Usually a power cycle will correct this issue\n");
+			break;
 		}
 	}
 
@@ -328,7 +346,6 @@ int initI2c(void) {
 	// is stationary.
 
 	uint8_t reg;
-
 	
 	Log_Debug("LSM6DSO: Calibrating angular rate . . .\n"); 
 	Log_Debug("LSM6DSO: Please make sure the device is stationary.\n");
