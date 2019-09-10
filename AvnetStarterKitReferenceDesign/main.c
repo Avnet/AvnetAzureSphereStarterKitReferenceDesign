@@ -110,6 +110,118 @@ static void TerminationHandler(int signalNumber)
 }
 
 /// <summary>
+///     Allocates and formats a string message on the heap.
+/// </summary>
+/// <param name="messageFormat">The format of the message</param>
+/// <param name="maxLength">The maximum length of the formatted message string</param>
+/// <returns>The pointer to the heap allocated memory.</returns>
+static void *SetupHeapMessage(const char *messageFormat, size_t maxLength, ...)
+{
+	va_list args;
+	va_start(args, maxLength);
+	char *message =
+		malloc(maxLength + 1); // Ensure there is space for the null terminator put by vsnprintf.
+	if (message != NULL) {
+		vsnprintf(message, maxLength, messageFormat, args);
+	}
+	va_end(args);
+	return message;
+}
+
+/// <summary>
+///     Direct Method callback function, called when a Direct Method call is received from the Azure
+///     IoT Hub.
+/// </summary>
+/// <param name="methodName">The name of the method being called.</param>
+/// <param name="payload">The payload of the method.</param>
+/// <param name="responsePayload">The response payload content. This must be a heap-allocated
+/// string, 'free' will be called on this buffer by the Azure IoT Hub SDK.</param>
+/// <param name="responsePayloadSize">The size of the response payload content.</param>
+/// <returns>200 HTTP status code if the method name is reconginized and the payload is correctly parsed;
+/// 400 HTTP status code if the payload is invalid;</returns>
+/// 404 HTTP status code if the method name is unknown.</returns>
+static int DirectMethodCall    (const char *methodName, const char *payload, size_t payloadSize, char **responsePayload, size_t *responsePayloadSize)
+{
+	Log_Debug("\n\nDirect Method called %s\n", methodName);
+
+	// Prepare the payload for the response. This is a heap allocated null terminated string.
+	// The Azure IoT Hub SDK is responsible of freeing it.
+	*responsePayload = NULL;  // Reponse payload content.
+	*responsePayloadSize = 0; // Response payload content size.
+
+	int result = 404; // HTTP status code.
+
+	// Look for the haltApplication method name.  This direct method does not require any payload, other than
+	// a valid Json argument such as {}.
+	if (strcmp(methodName, "haltApplication") != 0) {
+		result = 404;
+		Log_Debug("INFO: Method not found called: '%s'.\n", methodName);
+
+		static const char noMethodFound[] = "\"method not found '%s'\"";
+		size_t responseMaxLength = sizeof(noMethodFound) + strlen(methodName);
+		*responsePayload = SetupHeapMessage(noMethodFound, responseMaxLength, methodName);
+		if (*responsePayload == NULL) {
+			Log_Debug("ERROR: Could not allocate buffer for direct method response payload.\n");
+			abort();
+		}
+		*responsePayloadSize = strlen(*responsePayload);
+		return result;
+	}
+
+	// The payload can contain any JSON object such as: {}
+	char *directMethodCallContent = malloc(payloadSize + 1); // +1 to store null char at the end.
+	if (directMethodCallContent == NULL) {
+		Log_Debug("ERROR: Could not allocate buffer for direct method request payload.\n");
+		abort();
+	}
+
+	// Copy the payload into our local buffer then null terminate it.
+	memcpy(directMethodCallContent, payload, payloadSize);
+	directMethodCallContent[payloadSize] = 0; // Null terminated string.
+
+	// Log that the direct method was called and set the result to reflect success!
+	Log_Debug("haltApplication() Direct Method called\n");
+	result = 200;
+
+	// Construct the response message.  This will be displayed in the cloud when calling the direct method
+	static const char resetOkResponse[] =
+		"{ \"success\" : true, \"message\" : \"Halting Application\" }";
+	size_t responseMaxLength = sizeof(resetOkResponse) + strlen(payload);
+	*responsePayload = SetupHeapMessage(resetOkResponse, responseMaxLength);
+	if (*responsePayload == NULL) {
+		Log_Debug("ERROR: Could not allocate buffer for direct method response payload.\n");
+		abort();
+	}
+	*responsePayloadSize = strlen(*responsePayload);
+	
+	// Set the terminitation flag to true.  When in Visual Studio this will simply halt the application.
+	// If this application was running with the device in field-prep mode, the application would halt
+	// and the OS services would resetart the application.
+	terminationRequired = true;
+	return result;
+
+	// If there was a payload error, which there will never be for this direct method call, construct the 
+	// response message and send it back to the IoT Hub for the user to see
+	// I left this code here to show how to handle the error case.
+payloadError:
+	result = 400; // Bad request.
+	Log_Debug("INFO: Unrecognised direct method payload format.\n");
+
+	static const char noPayloadResponse[] =
+		"{ \"success\" : false, \"message\" : \"request does not contain an identifiable "
+		"payload\" }";
+	responseMaxLength = sizeof(noPayloadResponse);
+	*responsePayload = SetupHeapMessage(noPayloadResponse, responseMaxLength);
+	if (*responsePayload == NULL) {
+		Log_Debug("ERROR: Could not allocate buffer for direct method response payload.\n");
+		abort();
+	}
+	*responsePayloadSize = strlen(*responsePayload);
+
+	return result;
+
+}
+/// <summary>
 ///     Handle button timer event: if the button is pressed, report the event to the IoT Hub.
 /// </summary>
 static void ButtonTimerEventHandler(EventData *eventData)
@@ -266,6 +378,7 @@ static int InitPeripheralsAndHandlers(void)
 
 	// Tell the system about the callback function that gets called when we receive a device twin update message from Azure
 	AzureIoT_SetDeviceTwinUpdateCallback(&deviceTwinChangedHandler);
+	AzureIoT_SetDirectMethodCallback(&DirectMethodCall);
 
     return 0;
 }
