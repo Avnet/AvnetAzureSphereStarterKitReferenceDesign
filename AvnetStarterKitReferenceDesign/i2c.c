@@ -64,7 +64,7 @@ static float pressure_hPa;
 static float lps22hhTemperature_degC;
 
 static uint8_t whoamI, rst;
-static int accelTimerFd = -1;
+int accelTimerFd;
 const uint8_t lsm6dsOAddress = LSM6DSO_ADDRESS;     // Addr = 0x6A
 lsm6dso_ctx_t dev_ctx;
 lps22hh_ctx_t pressure_ctx;
@@ -387,11 +387,12 @@ int initI2c(void) {
 	struct timespec accelReadPeriod = { .tv_sec = ACCEL_READ_PERIOD_SECONDS,.tv_nsec = ACCEL_READ_PERIOD_NANO_SECONDS };
 	// event handler data structures. Only the event handler field needs to be populated.
 	static EventData accelEventData = { .eventHandler = &AccelTimerEventHandler };
+	accelTimerFd = -1;
 	accelTimerFd = CreateTimerFdAndAddToEpoll(epollFd, &accelReadPeriod, &accelEventData, EPOLLIN);
 	if (accelTimerFd < 0) {
 		return -1;
 	}
-
+	
 	return 0;
 }
 

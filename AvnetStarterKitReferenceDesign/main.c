@@ -30,9 +30,11 @@
    12. Control user RGB LEDs from the cloud using device twin properties
    13. Control optional Relay Click relays from the cloud using device twin properties
    14. Send Application version up as a device twin property
+   15. Stop application using "haltApplication" Direct Method call from the cloud
+   16. Modify sensor polling time using "setSensorPollTinme" Direct Method from the cloud
    TODO
    1. Add support for a OLED display
-   2. Add supprt for on-board light sensor
+   2. Add support for on-board light sensor
    	 
    *************************************************************************************************/
 
@@ -66,6 +68,7 @@
 extern twin_t twinArray[];
 extern int twinArraySize;
 extern IOTHUB_DEVICE_CLIENT_LL_HANDLE iothubClientHandle;
+extern int accelTimerFd;
 
 // Support functions.
 static void TerminationHandler(int signalNumber);
@@ -142,7 +145,7 @@ static void *SetupHeapMessage(const char *messageFormat, size_t maxLength, ...)
 /// 404 HTTP status code if the method name is unknown.</returns>
 static int DirectMethodCall    (const char *methodName, const char *payload, size_t payloadSize, char **responsePayload, size_t *responsePayloadSize)
 {
-	Log_Debug("\n\nDirect Method called %s\n", methodName);
+	Log_Debug("\nDirect Method called %s\n", methodName);
 
 	// Prepare the payload for the response. This is a heap allocated null terminated string.
 	// The Azure IoT Hub SDK is responsible of freeing it.
@@ -153,9 +156,93 @@ static int DirectMethodCall    (const char *methodName, const char *payload, siz
 
 	// Look for the haltApplication method name.  This direct method does not require any payload, other than
 	// a valid Json argument such as {}.
-	if (strcmp(methodName, "haltApplication") != 0) {
+	
+	if (strcmp(methodName, "haltApplication") == 0) {
+
+		// Log that the direct method was called and set the result to reflect success!
+		Log_Debug("haltApplication() Direct Method called\n");
+		result = 200;
+
+		// Construct the response message.  This response will be displayed in the cloud when calling the direct method
+		static const char resetOkResponse[] =
+			"{ \"success\" : true, \"message\" : \"Halting Application\" }";
+		size_t responseMaxLength = sizeof(resetOkResponse);
+		*responsePayload = SetupHeapMessage(resetOkResponse, responseMaxLength);
+		if (*responsePayload == NULL) {
+			Log_Debug("ERROR: Could not allocate buffer for direct method response payload.\n");
+			abort();
+		}
+		*responsePayloadSize = strlen(*responsePayload);
+
+		// Set the terminitation flag to true.  When in Visual Studio this will simply halt the application.
+		// If this application was running with the device in field-prep mode, the application would halt
+		// and the OS services would resetart the application.
+		terminationRequired = true;
+		return result;
+	}
+	
+	// Check to see if the setSensorPollTime direct method was called
+	else if (strcmp(methodName, "setSensorPollTime") == 0) {
+
+		// Log that the direct method was called and set the result to reflect success!
+		Log_Debug("setSensorPollTime() Direct Method called\n");
+		result = 200;
+
+		// The payload should contain a JSON object such as: {"pollTime": 20}
+		char *directMethodCallContent = malloc(payloadSize + 1); // +1 to store null char at the end.
+		if (directMethodCallContent == NULL) {
+			Log_Debug("ERROR: Could not allocate buffer for direct method request payload.\n");
+			abort();
+		}
+			   
+		// Copy the payload into our local buffer then null terminate it.
+		memcpy(directMethodCallContent, payload, payloadSize);
+		directMethodCallContent[payloadSize] = 0; // Null terminated string.
+	
+		JSON_Value *payloadJson = json_parse_string(directMethodCallContent);
+		free(directMethodCallContent);
+
+		// Verify we have a valid JSON string from the payload
+		if (payloadJson == NULL) {
+			goto payloadError;
+		}
+
+		// Verify that the payloadJson contains a valid JSON object
+		JSON_Object *pollTimeJson = json_value_get_object(payloadJson);
+		if (pollTimeJson == NULL) {
+			goto payloadError;
+		}
+
+		// Pull the Key: value pair from the JSON object, we're looking for {"pollTime": <integer>}
+		// Verify that the new timer is < 0
+		int newPollTime = (int)json_object_get_number(pollTimeJson, "pollTime");
+		if ( newPollTime < 1) {
+			goto payloadError;
+		}
+		else {
+			
+			Log_Debug("New PollTime %d\n", newPollTime);
+
+			// Construct the response message.  This will be displayed in the cloud when calling the direct method
+			static const char newPollTimeResponse[] =
+				"{ \"success\" : true, \"message\" : \"New Sensor Poll Time %d seconds\" }";
+			size_t responseMaxLength = sizeof(newPollTimeResponse) + strlen(payload);
+			*responsePayload = SetupHeapMessage(newPollTimeResponse, responseMaxLength, newPollTime);
+			if (*responsePayload == NULL) {
+				Log_Debug("ERROR: Could not allocate buffer for direct method response payload.\n");
+				abort();
+			}
+			*responsePayloadSize = strlen(*responsePayload);
+
+			// Define a new timespec variable for the timer and change the timer period
+			struct timespec newAccelReadPeriod = { .tv_sec = newPollTime,.tv_nsec = 0 };
+			SetTimerFdToPeriod(accelTimerFd, &newAccelReadPeriod);
+			return result;
+		}
+	}
+	else {
 		result = 404;
-		Log_Debug("INFO: Method not found called: '%s'.\n", methodName);
+		Log_Debug("INFO: Direct Method called \"%s\" not found.\n", methodName);
 
 		static const char noMethodFound[] = "\"method not found '%s'\"";
 		size_t responseMaxLength = sizeof(noMethodFound) + strlen(methodName);
@@ -168,39 +255,7 @@ static int DirectMethodCall    (const char *methodName, const char *payload, siz
 		return result;
 	}
 
-	// The payload can contain any JSON object such as: {}
-	char *directMethodCallContent = malloc(payloadSize + 1); // +1 to store null char at the end.
-	if (directMethodCallContent == NULL) {
-		Log_Debug("ERROR: Could not allocate buffer for direct method request payload.\n");
-		abort();
-	}
-
-	// Copy the payload into our local buffer then null terminate it.
-	memcpy(directMethodCallContent, payload, payloadSize);
-	directMethodCallContent[payloadSize] = 0; // Null terminated string.
-
-	// Log that the direct method was called and set the result to reflect success!
-	Log_Debug("haltApplication() Direct Method called\n");
-	result = 200;
-
-	// Construct the response message.  This will be displayed in the cloud when calling the direct method
-	static const char resetOkResponse[] =
-		"{ \"success\" : true, \"message\" : \"Halting Application\" }";
-	size_t responseMaxLength = sizeof(resetOkResponse) + strlen(payload);
-	*responsePayload = SetupHeapMessage(resetOkResponse, responseMaxLength);
-	if (*responsePayload == NULL) {
-		Log_Debug("ERROR: Could not allocate buffer for direct method response payload.\n");
-		abort();
-	}
-	*responsePayloadSize = strlen(*responsePayload);
-	
-	// Set the terminitation flag to true.  When in Visual Studio this will simply halt the application.
-	// If this application was running with the device in field-prep mode, the application would halt
-	// and the OS services would resetart the application.
-	terminationRequired = true;
-	return result;
-
-	// If there was a payload error, which there will never be for this direct method call, construct the 
+	// If there was a payload error, construct the 
 	// response message and send it back to the IoT Hub for the user to see
 	// I left this code here to show how to handle the error case.
 payloadError:
@@ -210,6 +265,8 @@ payloadError:
 	static const char noPayloadResponse[] =
 		"{ \"success\" : false, \"message\" : \"request does not contain an identifiable "
 		"payload\" }";
+
+	size_t responseMaxLength = sizeof(noPayloadResponse) + strlen(payload);
 	responseMaxLength = sizeof(noPayloadResponse);
 	*responsePayload = SetupHeapMessage(noPayloadResponse, responseMaxLength);
 	if (*responsePayload == NULL) {
