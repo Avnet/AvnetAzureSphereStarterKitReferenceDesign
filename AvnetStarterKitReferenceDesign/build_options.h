@@ -5,7 +5,7 @@
 //#define IOT_CENTRAL_APPLICATION
 
 // If your application is going to connect straight to a IoT Hub, then enable this define.
-//#define IOT_HUB_APPLICATION
+#define IOT_HUB_APPLICATION
 
 #if (defined(IOT_CENTRAL_APPLICATION) && defined(IOT_HUB_APPLICATION))
 #error "Can not define both IoT Central and IoT Hub Applications at the same time only define one."
@@ -25,7 +25,7 @@
 
 
 // Defines how quickly the accelerator data is read and reported
-#define ACCEL_READ_PERIOD_SECONDS 1
+#define ACCEL_READ_PERIOD_SECONDS 2
 #define ACCEL_READ_PERIOD_NANO_SECONDS 0
 
 // Enables I2C read/write debug

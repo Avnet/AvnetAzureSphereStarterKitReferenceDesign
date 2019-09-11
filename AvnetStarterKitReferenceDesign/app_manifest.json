@@ -5,7 +5,7 @@
   "EntryPoint": "/bin/app",
   "CmdArgs": [ "Avnet-Starter-Kit-reference-V1.0" ],
   "Capabilities": {
-    "AllowedConnections": [],
+    "AllowedConnections": [ "BW-IoTHub.azure-devices.net" ],
     "AllowedTcpServerPorts": [],
     "AllowedUdpServerPorts": [],
     "Gpio": [ 0, 4, 5, 8, 9, 10, 12, 13, 34 ],
