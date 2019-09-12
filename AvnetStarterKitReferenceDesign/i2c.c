@@ -351,14 +351,8 @@ int initI2c(void) {
 	Log_Debug("LSM6DSO: Please make sure the device is stationary.\n");
 
 	do {
-
-		// Delay and read the device until we have data!
-		do {
-			// Read the calibration values
-			HAL_Delay(5000);
-			lsm6dso_gy_flag_data_ready_get(&dev_ctx, &reg);
-		} while (!reg);
-
+		// Read the calibration values
+		lsm6dso_gy_flag_data_ready_get(&dev_ctx, &reg);
 		if (reg)
 		{
 			// Read angular rate field data to use for calibration offsets
@@ -366,17 +360,11 @@ int initI2c(void) {
 			lsm6dso_angular_rate_raw_get(&dev_ctx, raw_angular_rate_calibration.u8bit);
 		}
 
-		// Delay and read the device until we have data!
-		do {
-			// Read the calibration values
-			HAL_Delay(5000);
-			lsm6dso_gy_flag_data_ready_get(&dev_ctx, &reg);
-		} while (!reg);
-
 		// Read the angular data rate again and verify that after applying the calibration, we have 0 angular rate in all directions
+
+		lsm6dso_gy_flag_data_ready_get(&dev_ctx, &reg);
 		if (reg)
 		{
-
 			// Read angular rate field data
 			memset(data_raw_angular_rate.u8bit, 0x00, 3 * sizeof(int16_t));
 			lsm6dso_angular_rate_raw_get(&dev_ctx, data_raw_angular_rate.u8bit);
@@ -385,13 +373,13 @@ int initI2c(void) {
 			angular_rate_dps[0] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[0] - raw_angular_rate_calibration.i16bit[0]);
 			angular_rate_dps[1] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[1] - raw_angular_rate_calibration.i16bit[1]);
 			angular_rate_dps[2] = lsm6dso_from_fs2000_to_mdps(data_raw_angular_rate.i16bit[2] - raw_angular_rate_calibration.i16bit[2]);
-
 		}
 
-	// If the angular values after applying the offset are not all 0.0s, then do it again!
-	} while ((angular_rate_dps[0] != 0.0) || (angular_rate_dps[1] != 0.0) || (angular_rate_dps[2] != 0.0));
+	// If the angular values after applying the offset are not zero, then do it again!
+	} while (angular_rate_dps[0] == angular_rate_dps[1] == angular_rate_dps[2] == 0.0);
 
 	Log_Debug("LSM6DSO: Calibrating angular rate complete!\n");
+
 
 	// Init the epoll interface to periodically run the AccelTimerEventHandler routine where we read the sensors
 
