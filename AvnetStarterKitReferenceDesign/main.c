@@ -64,6 +64,42 @@
 #include <applibs/wificonfig.h>
 #include <azureiot/iothub_device_client_ll.h>
 
+#if (defined(RELAY_CLICK))
+// relay click section
+
+#include "relay.h"
+
+#define MIKROE_PWM  MT3620_GPIO1   //click#1=GPIO0;  click#2=GPIO1
+#define MIKROE_CS   MT3620_GPIO35  //click#1=GPIO34; click#2=GPIO35
+
+static int r1PinFd;  //relay #1
+static GPIO_Value_Type relay1Pin;
+static int r2PinFd;  //relay #2
+static GPIO_Value_Type relay2Pin;
+
+void init(void)
+{
+	r1PinFd = GPIO_OpenAsOutput(MIKROE_PWM, relay1Pin, GPIO_Value_Low);
+	r2PinFd = GPIO_OpenAsOutput(MIKROE_CS, relay2Pin, GPIO_Value_Low);
+}
+
+void    state(RELAY* ptr)
+{
+	if (ptr->relay1_status == 1)
+		GPIO_SetValue(r1PinFd, GPIO_Value_High);
+	else
+		GPIO_SetValue(r1PinFd, GPIO_Value_Low);
+
+	if (ptr->relay2_status == 1)
+		GPIO_SetValue(r2PinFd, GPIO_Value_High);
+	else
+		GPIO_SetValue(r2PinFd, GPIO_Value_Low);
+}
+
+// relay click section
+#endif
+
+
 // Provide local access to variables in other files
 extern twin_t twinArray[];
 extern int twinArraySize;
@@ -492,6 +528,15 @@ int main(int argc, char *argv[])
 	// Clear the ssid array
 	memset(ssid, 0, 128);
 
+#if (defined(RELAY_CLICK))
+	int    i;
+	RELAY* rptr;
+
+	rptr = open_relay(state, init);
+	sleep(1);
+	i = 0;
+#endif
+
 	Log_Debug("Version String: %s\n", argv[1]);
 	Log_Debug("Avnet Starter Kit Simple Reference Application starting.\n");
     if (InitPeripheralsAndHandlers() != 0) {
@@ -500,6 +545,17 @@ int main(int argc, char *argv[])
 
     // Use epoll to wait for events and trigger handlers, until an error or SIGTERM happens
     while (!terminationRequired) {
+
+#if (defined(RELAY_CLICK))
+		relaystate(rptr, (i & 1) ? relay1_set : relay1_clr);
+		relaystate(rptr, (i & 2) ? relay2_set : relay2_clr);
+		Log_Debug("(%d) relay2 %s, relay1 %s\n", i,
+			relaystate(rptr, relay2_rd) ? "ON" : "OFF",
+			relaystate(rptr, relay1_rd) ? "ON" : "OFF");
+		sleep(10);
+		++i;
+#endif
+
         if (WaitForEventAndCallHandler(epollFd) != 0) {
             terminationRequired = true;
         }
@@ -558,6 +614,14 @@ int main(int argc, char *argv[])
 		AzureIoT_DoPeriodicTasks();
 #endif
     }
+
+#if (defined(RELAY_CLICK))
+	close_relay(rptr);
+	GPIO_SetValue(r1PinFd, GPIO_Value_Low);
+	GPIO_SetValue(r2PinFd, GPIO_Value_Low);
+	Log_Debug("relay2 OFF, relay1 oFF\nDONE...\n");
+#endif
+
 
     ClosePeripheralsAndHandlers();
     Log_Debug("Application exiting.\n");
