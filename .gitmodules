@@ -1,0 +1,3 @@
+[submodule "clickmodules"]
+	path = clickmodules
+	url = https://github.com/Avnet/clickmodules.git
