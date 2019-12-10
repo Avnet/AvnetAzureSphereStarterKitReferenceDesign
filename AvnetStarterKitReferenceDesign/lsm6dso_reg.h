@@ -2604,8 +2604,7 @@ typedef struct {
     lsm6dso_sensor_hub_17_t  sh_byte_17;
     lsm6dso_sensor_hub_18_t  sh_byte_18;
 } lsm6dso_emb_sh_read_t;
-int32_t lsm6dso_sh_read_data_raw_get(lsm6dso_ctx_t *ctx,
-                                     lsm6dso_emb_sh_read_t *val);
+int32_t lsm6dso_sh_read_data_raw_get(lsm6dso_ctx_t *ctx, lsm6dso_emb_sh_read_t *val, uint8_t len);
 
 typedef enum {
   LSM6DSO_SLV_0       = 0,

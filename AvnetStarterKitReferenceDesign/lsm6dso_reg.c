@@ -8192,20 +8192,21 @@ int32_t lsm6dso_fsm_start_address_get(lsm6dso_ctx_t *ctx, uint8_t *buff)
 * @param  val      union of registers from SENSOR_HUB_1 to SENSOR_HUB_18
 *
   */
-int32_t lsm6dso_sh_read_data_raw_get(lsm6dso_ctx_t *ctx,
-                                     lsm6dso_emb_sh_read_t *val)
+
+int32_t lsm6dso_sh_read_data_raw_get(lsm6dso_ctx_t *ctx, lsm6dso_emb_sh_read_t *val, uint8_t len)
+
 {
-  int32_t ret;
+	int32_t ret;
 
-  ret = lsm6dso_mem_bank_set(ctx, LSM6DSO_SENSOR_HUB_BANK);
-  if (ret == 0) {
-    ret = lsm6dso_read_reg(ctx, LSM6DSO_SENSOR_HUB_1, (uint8_t*) val, 18U);
-  }
-  if (ret == 0) {
-    ret = lsm6dso_mem_bank_set(ctx, LSM6DSO_USER_BANK);
-  }
+	ret = lsm6dso_mem_bank_set(ctx, LSM6DSO_SENSOR_HUB_BANK);
+	if (ret == 0) {
+		ret = lsm6dso_read_reg(ctx, LSM6DSO_SENSOR_HUB_1, (uint8_t*)val, len);
+	}
+	if (ret == 0) {
+		ret = lsm6dso_mem_bank_set(ctx, LSM6DSO_USER_BANK);
+	}
 
-  return ret;
+	return ret;
 }
 
 int32_t lsm6dso_sh_read_data_raw_get_slave0(lsm6dso_ctx_t *ctx,	lsm6dso_emb_sh_read_t *val)

@@ -584,69 +584,64 @@ static int32_t lsm6dso_write_lps22hh_cx(void* ctx, uint8_t reg, uint8_t* data,
 static int32_t lsm6dso_read_lps22hh_cx(void* ctx, uint8_t reg, uint8_t* data, uint16_t len)
 {
 	lsm6dso_sh_cfg_read_t sh_cfg_read;
-	axis3bit16_t data_raw_acceleration;
+	uint8_t buf_raw[6];
 	int32_t ret;
 	uint8_t drdy;
 	lsm6dso_status_master_t master_status;
 
 	/* Disable accelerometer. */
 	lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_OFF);
-	
-	// For each byte we need to read from the lps22hh
-	for (int i = 0; i < len; i++) {
 
-		/* Configure Sensor Hub to read LPS22HH. */
-		sh_cfg_read.slv_add = (LPS22HH_I2C_ADD_L &0xFEU) >> 1; /* 7bit I2C address */
-		sh_cfg_read.slv_subadd = reg+i;
-		sh_cfg_read.slv_len = 1;
+	/* Configure Sensor Hub to read LPS22HH. */
+	sh_cfg_read.slv_add = (LPS22HH_I2C_ADD_L & 0xFEU) >> 1; /* 7bit I2C address */
+	sh_cfg_read.slv_subadd = reg;
+	sh_cfg_read.slv_len = (uint8_t)len;
 
-		// Call the command to read the data from the sensor hub.
-		// This data will be read from the device connected to the 
-		// sensor hub, and saved into a register for us to read.
-		ret = lsm6dso_sh_slv0_cfg_read(&dev_ctx, &sh_cfg_read);
-		lsm6dso_sh_slave_connected_set(&dev_ctx, LSM6DSO_SLV_0);
+	// Call the command to read the data from the sensor hub.
+	// This data will be read from the device connected to the 
+	// sensor hub, and saved into a register for us to read.
+	ret = lsm6dso_sh_slv0_cfg_read(&dev_ctx, &sh_cfg_read);
 
-		/* Enable I2C Master and I2C master. */
-		lsm6dso_sh_master_set(&dev_ctx, PROPERTY_ENABLE);
+	// Using slave 0 only
+	lsm6dso_sh_slave_connected_set(&dev_ctx, LSM6DSO_SLV_0);
 
-		/* Enable accelerometer to trigger Sensor Hub operation. */
-		lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_104Hz);
+	/* Enable I2C Master */
+	lsm6dso_sh_master_set(&dev_ctx, PROPERTY_ENABLE);
 
-		/* Wait Sensor Hub operation flag set. */
-		lsm6dso_acceleration_raw_get(&dev_ctx, data_raw_acceleration.u8bit);
-		do {
-			HAL_Delay(20);
-			lsm6dso_xl_flag_data_ready_get(&dev_ctx, &drdy);
-		} while (!drdy);
+	/* Enable accelerometer to trigger Sensor Hub operation. */
+	lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_104Hz);
 
-		do {
-			HAL_Delay(20);
-			lsm6dso_sh_status_get(&dev_ctx, &master_status);
-		} while (!master_status.sens_hub_endop);
+	/* Wait Sensor Hub operation flag set. */
+	lsm6dso_acceleration_raw_get(&dev_ctx, buf_raw);
+	do {
+		HAL_Delay(20);
+		lsm6dso_xl_flag_data_ready_get(&dev_ctx, &drdy);
+	} while (!drdy);
 
-		/* Disable I2C master and XL(trigger). */
-		lsm6dso_sh_master_set(&dev_ctx, PROPERTY_DISABLE);
-		lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_OFF);
+	do {
+		HAL_Delay(20);
+		lsm6dso_sh_status_get(&dev_ctx, &master_status);
+	} while (!master_status.sens_hub_endop);
 
-		// Read the data from the device.  The call below reads
-		// all 18 sensor hub data.  We just need the data from 
-		// sensor hub 1, so copy that into our data array.
-		uint8_t buffer[18];
-		lsm6dso_sh_read_data_raw_get(&dev_ctx, buffer);
-		data[i] = buffer[1];
+	/* Disable I2C master and XL(trigger). */
+	lsm6dso_sh_master_set(&dev_ctx, PROPERTY_DISABLE);
+	lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_OFF);
+
+	// Read the data from the device
+	lsm6dso_sh_read_data_raw_get(&dev_ctx, data, (uint8_t)len);
 
 #ifdef ENABLE_READ_WRITE_DEBUG
-		Log_Debug("Read %d bytes: ", len);
-		for (int i = 0; i < len; i++) {
-			Log_Debug("[%0x] ", data[i]);
-		}
-		Log_Debug("\n", len);
-#endif 
+	Log_Debug("Read %d bytes: ", len);
+	for (int i = 0; i < len; i++) {
+		Log_Debug("[%0x] ", data[i]);
 	}
+	Log_Debug("\n", len);
+#endif 
 
 	/* Re-enable accelerometer */
 	lsm6dso_xl_data_rate_set(&dev_ctx, LSM6DSO_XL_ODR_104Hz);
 
 	return ret;
 }
+
 
