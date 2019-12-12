@@ -1,9 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.572
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29306.81
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AvnetStarterKitReferenceDesign", "AvnetStarterKitReferenceDesign\AvnetStarterKitReferenceDesign.vcxproj", "{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A4B3C2D-3514-4F81-8E6A-A869DE31EC07} = {8A4B3C2D-3514-4F81-8E6A-A869DE31EC07}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ClickLib", "ClickLib\ClickLib.vcxproj", "{8A4B3C2D-3514-4F81-8E6A-A869DE31EC07}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +20,10 @@ Global
 		{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}.Debug|ARM.Build.0 = Debug|ARM
 		{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}.Release|ARM.ActiveCfg = Release|ARM
 		{1EC4AAF4-4A6F-46C8-B538-4F4B9DA1238B}.Release|ARM.Build.0 = Release|ARM
+		{8A4B3C2D-3514-4F81-8E6A-A869DE31EC07}.Debug|ARM.ActiveCfg = Debug|ARM
+		{8A4B3C2D-3514-4F81-8E6A-A869DE31EC07}.Debug|ARM.Build.0 = Debug|ARM
+		{8A4B3C2D-3514-4F81-8E6A-A869DE31EC07}.Release|ARM.ActiveCfg = Release|ARM
+		{8A4B3C2D-3514-4F81-8E6A-A869DE31EC07}.Release|ARM.Build.0 = Release|ARM
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
