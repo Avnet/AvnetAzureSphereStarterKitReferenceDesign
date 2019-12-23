@@ -43,7 +43,8 @@
 #include <applibs/log.h>
 #include <applibs/i2c.h>
 
-#include "mt3620_avnet_dev.h"
+#include "hw/avnet_mt3620_sk.h"
+
 #include "deviceTwin.h"
 #include "azure_iot_utilities.h"
 #include "build_options.h"
@@ -229,7 +230,7 @@ int initI2c(void) {
 
 	// Begin MT3620 I2C init 
 
-	i2cFd = I2CMaster_Open(MT3620_RDB_HEADER4_ISU2_I2C);
+	i2cFd = I2CMaster_Open(AVNET_MT3620_SK_ISU2_I2C);
 	if (i2cFd < 0) {
 		Log_Debug("ERROR: I2CMaster_Open: errno=%d (%s)\n", errno, strerror(errno));
 		return -1;

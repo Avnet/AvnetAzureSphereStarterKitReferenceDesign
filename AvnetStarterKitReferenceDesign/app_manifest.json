@@ -8,12 +8,12 @@
     "AllowedConnections": [],
     "AllowedTcpServerPorts": [],
     "AllowedUdpServerPorts": [],
-    "Gpio": [ 0, 4, 5, 8, 9, 10, 12, 13, 34 ],
+    "Gpio": [ "$AVNET_MT3620_SK_GPIO0", "$AVNET_MT3620_SK_APP_STATUS_LED_YELLOW", "$AVNET_MT3620_SK_WLAN_STATUS_LED_YELLOW", "$AVNET_MT3620_SK_USER_LED_RED", "$AVNET_MT3620_SK_USER_LED_GREEN", "$AVNET_MT3620_SK_USER_LED_BLUE", "$AVNET_MT3620_SK_USER_BUTTON_A", "$AVNET_MT3620_SK_USER_BUTTON_B", "$AVNET_MT3620_SK_GPIO34" ],
     "Uart": [],
-    "I2cMaster": [ "ISU2" ],
+    "I2cMaster": [ "$AVNET_MT3620_SK_ISU2_I2C" ],
     "SpiMaster": [],
     "WifiConfig": true,
     "NetworkConfig": false,
-    "SystemTime": false
+    "SystemTime" : false
   }
 }

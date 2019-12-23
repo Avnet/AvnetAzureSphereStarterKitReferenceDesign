@@ -16,7 +16,7 @@
 #include <applibs/i2c.h>
 #include <applibs/gpio.h>
 
-#include "mt3620_avnet_dev.h"
+#include "hw/avnet_mt3620_sk.h"
 #include "deviceTwin.h"
 #include "azure_iot_utilities.h"
 #include "parson.h"
@@ -62,13 +62,13 @@ static int desiredVersion = 0;
 // .twinType - The data type for this item, TYPE_BOOL, TYPE_STRING, TYPE_INT, or TYPE_FLOAT
 // .active_high - true if GPIO item is active high, false if active low.  This is used to init the GPIO 
 twin_t twinArray[] = {
-	{.twinKey = "userLedRed",.twinVar = &userLedRedIsOn,.twinFd = &userLedRedFd,.twinGPIO = MT3620_RDB_LED1_RED,.twinType = TYPE_BOOL,.active_high = false},
-	{.twinKey = "userLedGreen",.twinVar = &userLedGreenIsOn,.twinFd = &userLedGreenFd,.twinGPIO = MT3620_RDB_LED1_GREEN,.twinType = TYPE_BOOL,.active_high = false},
-	{.twinKey = "userLedBlue",.twinVar = &userLedBlueIsOn,.twinFd = &userLedBlueFd,.twinGPIO = MT3620_RDB_LED1_BLUE,.twinType = TYPE_BOOL,.active_high = false},
-	{.twinKey = "appLed",.twinVar = &appLedIsOn,.twinFd = &appLedFd,.twinGPIO = AVT_LED_APP,.twinType = TYPE_BOOL,.active_high = false},
-	{.twinKey = "wifiLed",.twinVar = &wifiLedIsOn,.twinFd = &wifiLedFd,.twinGPIO = AVT_LED_WIFI,.twinType = TYPE_BOOL,.active_high = false},
-	{.twinKey = "clickBoardRelay1",.twinVar = &clkBoardRelay1IsOn,.twinFd = &clickSocket1Relay1Fd,.twinGPIO = AVT_SK_CM1_CS,.twinType = TYPE_BOOL,.active_high = true},
-	{.twinKey = "clickBoardRelay2",.twinVar = &clkBoardRelay2IsOn,.twinFd = &clickSocket1Relay2Fd,.twinGPIO = AVT_SK_CM1_PWM,.twinType = TYPE_BOOL,.active_high = true}};
+	{.twinKey = "userLedRed",.twinVar = &userLedRedIsOn,.twinFd = &userLedRedFd,.twinGPIO = AVNET_MT3620_SK_USER_LED_RED,.twinType = TYPE_BOOL,.active_high = false},
+	{.twinKey = "userLedGreen",.twinVar = &userLedGreenIsOn,.twinFd = &userLedGreenFd,.twinGPIO = AVNET_MT3620_SK_USER_LED_GREEN,.twinType = TYPE_BOOL,.active_high = false},
+	{.twinKey = "userLedBlue",.twinVar = &userLedBlueIsOn,.twinFd = &userLedBlueFd,.twinGPIO = AVNET_MT3620_SK_USER_LED_BLUE,.twinType = TYPE_BOOL,.active_high = false},
+	{.twinKey = "appLed",.twinVar = &appLedIsOn,.twinFd = &appLedFd,.twinGPIO = AVNET_MT3620_SK_APP_STATUS_LED_YELLOW,.twinType = TYPE_BOOL,.active_high = false},
+	{.twinKey = "wifiLed",.twinVar = &wifiLedIsOn,.twinFd = &wifiLedFd,.twinGPIO = AVNET_MT3620_SK_WLAN_STATUS_LED_YELLOW,.twinType = TYPE_BOOL,.active_high = false},
+	{.twinKey = "clickBoardRelay1",.twinVar = &clkBoardRelay1IsOn,.twinFd = &clickSocket1Relay1Fd,.twinGPIO = AVNET_MT3620_SK_GPIO34,.twinType = TYPE_BOOL,.active_high = true},
+	{.twinKey = "clickBoardRelay2",.twinVar = &clkBoardRelay2IsOn,.twinFd = &clickSocket1Relay2Fd,.twinGPIO = AVNET_MT3620_SK_GPIO0,.twinType = TYPE_BOOL,.active_high = true}};
 
 // Calculate how many twin_t items are in the array.  We use this to iterate through the structure.
 int twinArraySize = sizeof(twinArray) / sizeof(twin_t);
