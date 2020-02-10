@@ -355,6 +355,8 @@ static void ButtonTimerEventHandler(EventData *eventData)
 		buttonBState = newButtonBState;
 	}
 	
+
+#if (defined(IOT_CENTRAL_APPLICATION) || defined(IOT_HUB_APPLICATION))
 	// If either button was pressed, then enter the code to send the telemetry message
 	if (sendTelemetryButtonA || sendTelemetryButtonB) {
 
@@ -379,6 +381,7 @@ static void ButtonTimerEventHandler(EventData *eventData)
 
 		free(pjsonBuffer);
 	}
+#endif
 
 }
 
